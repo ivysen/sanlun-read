@@ -1,5 +1,5 @@
 import { extractText } from "unpdf";
-import { Epub } from "epub2";
+import { EPub } from "epub2";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       const { text: extracted } = await extractText(data, { mergePages: true });
       text = (typeof extracted === "string" ? extracted : "").trim();
     } else if (isEpub) {
-      const epub = new Epub(data);
+      const epub = new EPub(data);
       await epub.parse();
       text = epub.flow.map(item => item.textContent).join("\n").trim();
     }

@@ -48,7 +48,7 @@ export function PdfUpload() {
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,application/epub+zip,.epub"
         className="hidden"
         disabled={loading}
         onChange={onFileChange}
@@ -59,7 +59,7 @@ export function PdfUpload() {
         onClick={() => inputRef.current?.click()}
         className="w-full rounded-xl border border-emerald-600 bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
       >
-        {loading ? "上传并解析中…" : "上传 PDF"}
+        {loading ? "上传并解析中…" : "上传 PDF 或 EPUB"}
       </button>
       {error && (
         <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">

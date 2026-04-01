@@ -1,4 +1,5 @@
 import { extractText } from "unpdf";
+import { Epub } from "epub2";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -36,8 +37,11 @@ export async function POST(request: Request) {
   }
 
   const mime = file.type || "";
-  if (mime && mime !== "application/pdf" && !mime.includes("pdf")) {
-    return NextResponse.json({ error: "仅支持 PDF 文件" }, { status: 400 });
+  const fileName = file.name || "";
+  const isPdf = mime === "application/pdf" || mime.includes("pdf") || fileName.endsWith(".pdf");
+  const isEpub = mime === "application/epub+zip" || mime.includes("epub") || fileName.endsWith(".epub");
+  if (!isPdf && !isEpub) {
+    return NextResponse.json({ error: "仅支持 PDF 和 EPUB 文件" }, { status: 400 });
   }
 
   const arrayBuffer = await file.arrayBuffer();
@@ -45,16 +49,22 @@ export async function POST(request: Request) {
 
   let text = "";
   try {
-    const { text: extracted } = await extractText(data, { mergePages: true });
-    text = (typeof extracted === "string" ? extracted : "").trim();
+    if (isPdf) {
+      const { text: extracted } = await extractText(data, { mergePages: true });
+      text = (typeof extracted === "string" ? extracted : "").trim();
+    } else if (isEpub) {
+      const epub = new Epub(data);
+      await epub.parse();
+      text = epub.flow.map(item => item.textContent).join("\n").trim();
+    }
   } catch (e) {
-    const message = e instanceof Error ? e.message : "PDF 解析失败";
+    const message = e instanceof Error ? e.message : "文件解析失败";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
   if (!text) {
     return NextResponse.json(
-      { error: "未能从 PDF 中提取文字（可能是扫描件或加密文件）" },
+      { error: "未能从文件中提取文字（可能是扫描件、加密文件或格式不支持）" },
       { status: 400 },
     );
   }

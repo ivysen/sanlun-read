@@ -1,9 +1,7 @@
 import { extractText } from "unpdf";
-import { EPub } from "epub2";
+import JSZip from "jszip";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import * as tmp from "tmp";
-import * as fs from "fs/promises";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -55,40 +53,39 @@ export async function POST(request: Request) {
       const { text: extracted } = await extractText(data, { mergePages: true });
       text = (typeof extracted === "string" ? extracted : "").trim();
     } else if (isEpub) {
-      // 创建临时文件
-      const tempFile = tmp.fileSync({ postfix: '.epub' });
-      try {
-        // 写入二进制数据到临时文件
-        await fs.writeFile(tempFile.name, data);
-        
-        // 使用临时文件路径创建 EPub 实例
-        const epub = new EPub(tempFile.name);
-        await new Promise<void>((resolve, reject) => {
-          epub.on('end', resolve);
-          epub.on('error', reject);
-          epub.parse();
-        });
-        
-        // 提取文本内容
-        const chapterTexts: string[] = [];
-        for (const chapter of epub.flow) {
-          const html = await new Promise<string>((resolve, reject) => {
-            epub.getChapterRaw(chapter.id, (err, data) => {
-              if (err) reject(err);
-              else resolve(data || '');
-            });
-          });
-          // 去掉 HTML 标签提取纯文字
-          const plainText = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-          if (plainText) {
-            chapterTexts.push(plainText);
+      // 使用 JSZip 解析 epub 文件（epub 本质是 zip）
+      const zip = await JSZip.loadAsync(data);
+      const htmlFiles: string[] = [];
+      
+      // 找出所有 .html 和 .xhtml 文件
+      for (const filename in zip.files) {
+        if (filename.endsWith('.html') || filename.endsWith('.xhtml')) {
+          const content = await zip.file(filename)?.async('string');
+          if (content) {
+            htmlFiles.push(content);
           }
         }
-        text = chapterTexts.join("\n\n").trim();
-      } finally {
-        // 无论成功失败都删除临时文件
-        tempFile.removeCallback();
       }
+      
+      // 从所有 HTML 文件中提取纯文字
+      const textParts: string[] = [];
+      for (const html of htmlFiles) {
+        // 去掉 HTML 标签
+        const plainText = html
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (plainText) {
+          textParts.push(plainText);
+        }
+      }
+      
+      text = textParts.join("\n\n").trim();
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : "文件解析失败";

@@ -2,6 +2,8 @@ import { extractText } from "unpdf";
 import { EPub } from "epub2";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import * as tmp from "tmp";
+import * as fs from "fs/promises";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -53,9 +55,26 @@ export async function POST(request: Request) {
       const { text: extracted } = await extractText(data, { mergePages: true });
       text = (typeof extracted === "string" ? extracted : "").trim();
     } else if (isEpub) {
-      const epub = new EPub(data);
-      await epub.parse();
-      text = epub.flow.map(item => item.textContent).join("\n").trim();
+      // 创建临时文件
+      const tempFile = tmp.fileSync({ postfix: '.epub' });
+      try {
+        // 写入二进制数据到临时文件
+        await fs.writeFile(tempFile.name, data);
+        
+        // 使用临时文件路径创建 EPub 实例
+        const epub = new EPub(tempFile.name);
+        await new Promise<void>((resolve, reject) => {
+          epub.on('end', resolve);
+          epub.on('error', reject);
+          epub.parse();
+        });
+        
+        // 提取文本内容
+        text = epub.flow.map(item => item.textContent).join("\n").trim();
+      } finally {
+        // 无论成功失败都删除临时文件
+        tempFile.removeCallback();
+      }
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : "文件解析失败";

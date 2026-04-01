@@ -36,9 +36,6 @@ export default async function HomePage() {
         <p className="mt-2 text-3xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
           {profile?.daily_read_remaining ?? "—"}
         </p>
-        <p className="mt-2 text-xs text-zinc-400">
-          后续将按日重置；需在 Supabase 执行迁移并启用 profiles 表。
-        </p>
       </section>
 
       <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">

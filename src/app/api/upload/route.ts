@@ -70,7 +70,21 @@ export async function POST(request: Request) {
         });
         
         // 提取文本内容
-        text = epub.flow.map(item => item.textContent).join("\n").trim();
+        const chapterTexts: string[] = [];
+        for (const chapter of epub.flow) {
+          const html = await new Promise<string>((resolve, reject) => {
+            epub.getChapterRaw(chapter.id, (err, data) => {
+              if (err) reject(err);
+              else resolve(data || '');
+            });
+          });
+          // 去掉 HTML 标签提取纯文字
+          const plainText = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (plainText) {
+            chapterTexts.push(plainText);
+          }
+        }
+        text = chapterTexts.join("\n\n").trim();
       } finally {
         // 无论成功失败都删除临时文件
         tempFile.removeCallback();
